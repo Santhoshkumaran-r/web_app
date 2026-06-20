@@ -1,14 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import API from '../utils/api';
 
 const FACILITY_MAX = 4095;
 const ACCESS_MAX   = 16777215;
+const IconKey        = ({ size = 16, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="7.5" cy="15.5" r="5.5"/>
+    <path d="M21 2l-9.6 9.6"/>
+    <path d="M15.5 7.5l3 3L22 7l-3-3"/>
+  </svg>
+);
+const CopyIcon  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>;
+const CheckIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>;
+const TrashIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
+const WarnIcon  = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
 
-const CopyIcon   = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>;
-const CheckIcon  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>;
-const TrashIcon  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
-const WarnIcon   = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
-
+// ── Confirm Modal ─────────────────────────────────────────────────────────────
 const ConfirmModal = ({ mode, onConfirm, onCancel, loading }) => {
   const isAll = mode === 'all';
   return (
@@ -34,30 +41,112 @@ const ConfirmModal = ({ mode, onConfirm, onCancel, loading }) => {
   );
 };
 
-/**
- * Reusable token generation page.
- * Props:
- *   apiBase   — e.g. '/admin/token' | '/vendor/token' | '/user/token'
- *   accentColor — hex color for the icon background
- *   role      — 'Admin' | 'Vendor' | 'User' (display only)
- */
-const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
-  const [form, setForm]                 = useState({ facilityCode: '', accessCode: '', employeeEmail: '' });
-  const [errors, setErrors]             = useState({});
-  const [successEmail, setSuccessEmail] = useState('');
-  const [sentToken, setSentToken]       = useState('');
-  const [errorMsg, setErrorMsg]         = useState('');
-  const [loading, setLoading]           = useState(false);
-  const [copied, setCopied]             = useState(false);
-  const [history, setHistory]           = useState([]);
-  const [histLoading, setHistLoading]   = useState(true);
-  const [confirm, setConfirm]           = useState(null);
-  const [deleting, setDeleting]         = useState(false);
+// ── Quota Bar ─────────────────────────────────────────────────────────────────
+const QuotaBar = ({ used, limit }) => {
+  if (limit === null || limit === undefined) return null; // unlimited — hide entirely
 
+  const remaining = Math.max(0, limit - used);
+  const pct       = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
+  const isOut     = remaining === 0;
+  const isLow     = !isOut && remaining <= Math.max(1, Math.floor(limit * 0.2)); // ≤20% left
+  const barColor  = isOut ? '#ef4444' : isLow ? '#f59e0b' : '#1976d2';
+  const bgColor   = isOut ? '#fef2f2' : isLow ? '#fffbeb' : '#e3f2fd';
+  const borderColor = isOut ? '#fecaca' : isLow ? '#fde68a' : '#90caf9';
+  const textColor = isOut ? '#b91c1c' : isLow ? '#92400e' : '#1565c0';
+
+  return (
+    <div style={{
+      background: bgColor, border: `1px solid ${borderColor}`,
+      borderRadius: 10, padding: '14px 16px', marginBottom: '1.25rem',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: textColor }}>
+          {isOut ? 'Token Limit Reached' : isLow ? 'Token Limit Low' : 'Token Quota'}
+        </span>
+        {/* <span style={{ fontSize: '0.8rem', fontWeight: 700, color: textColor }}>
+          {remaining} / {limit} remaining
+        </span> */}
+      </div>
+      <div style={{ height: 6, borderRadius: 6, background: '#e5e7eb', overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', borderRadius: 6,
+          width: `${pct}%`,
+          background: isOut ? '#ef4444' : `linear-gradient(90deg, ${barColor}88, ${barColor})`,
+          transition: 'width 0.4s ease',
+        }} />
+      </div>
+      {isOut && (
+        <p style={{ fontSize: '0.75rem', color: textColor, margin: '8px 0 0', lineHeight: 1.5 }}>
+          You have used all tokens. Please contact your <strong>vendor or admin</strong> to request an increase.
+        </p>
+      )}
+      {isLow && !isOut && (
+        <p style={{ fontSize: '0.75rem', color: textColor, margin: '8px 0 0' }}>
+          Only <strong>{remaining}</strong> token{remaining !== 1 ? 's' : ''} left. Contact your admin if you need more.
+        </p>
+      )}
+    </div>
+  );
+};
+
+// ── Limit Reached Banner ──────────────────────────────────────────────────────
+const LimitReachedBanner = ({ role }) => {
+  const contactWho = role?.toLowerCase() === 'user' ? 'vendor or admin' : 'admin';
+  return (
+    <div style={{
+      background: '#fef2f2', border: '1.5px solid #fecaca',
+      borderRadius: 10, padding: '16px 18px', marginTop: '1rem',
+      display: 'flex', gap: 12, alignItems: 'flex-start',
+    }}>
+      <div>
+        <p style={{ margin: 0, fontWeight: 700, fontSize: '0.875rem', color: '#b91c1c' }}>
+          Token Limit Reached
+        </p>
+        <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#991b1b', lineHeight: 1.6 }}>
+          You have used all your allocated tokens. Please contact your{' '}
+          <strong>{contactWho}</strong> to request additional tokens.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// ── Main Component ────────────────────────────────────────────────────────────
+const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
+  const [form,         setForm]         = useState({ facilityCode: '', accessCode: '', employeeEmail: '' });
+  const [errors,       setErrors]       = useState({});
+  const [successEmail, setSuccessEmail] = useState('');
+  const [sentToken,    setSentToken]    = useState('');
+  const [errorMsg,     setErrorMsg]     = useState('');
+  const [limitReached, setLimitReached] = useState(false);
+  const [loading,      setLoading]      = useState(false);
+  const [copied,       setCopied]       = useState(false);
+  const [history,      setHistory]      = useState([]);
+  const [histLoading,  setHistLoading]  = useState(true);
+  const [confirm,      setConfirm]      = useState(null);
+  const [deleting,     setDeleting]     = useState(false);
+
+  // Quota state — only relevant for vendor/user (not admin)
+  const [quota, setQuota] = useState({ tokenLimit: null, tokensUsed: 0 });
+
+  // ── Fetch quota ─────────────────────────────────────────────────────────────
+  const fetchQuota = useCallback(async () => {
+    if (role === 'Admin') return; // admin has no limit
+    try {
+      const res = await API.get(`${apiBase}/quota`);
+      setQuota({
+        tokenLimit:  res.data.tokenLimit,
+        tokensUsed:  res.data.tokensUsed,
+      });
+    } catch {
+      // quota endpoint missing or error — silently ignore
+    }
+  }, [apiBase, role]);
+
+  // ── Fetch history ───────────────────────────────────────────────────────────
   useEffect(() => {
     API.get(`${apiBase}/history`)
       .then((res) => {
-        // Convert _id to plain string to avoid ObjectId issues in URL params
         const tokens = (res.data.tokens || []).map((t) => ({
           ...t,
           _id: t._id?.toString() || t._id,
@@ -66,20 +155,23 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
       })
       .catch(() => setHistory([]))
       .finally(() => setHistLoading(false));
-  }, [apiBase]);
 
+    fetchQuota();
+  }, [apiBase, fetchQuota]);
+
+  // ── Form handlers ───────────────────────────────────────────────────────────
   const handleNumberInput = (e) => {
     const { name, value } = e.target;
     if (!/^\d*$/.test(value)) return;
     setForm((f) => ({ ...f, [name]: value }));
     setErrors((er) => ({ ...er, [name]: '' }));
-    setSuccessEmail(''); setSentToken(''); setErrorMsg('');
+    setSuccessEmail(''); setSentToken(''); setErrorMsg(''); setLimitReached(false);
   };
 
   const handleEmailInput = (e) => {
     setForm((f) => ({ ...f, employeeEmail: e.target.value }));
     setErrors((er) => ({ ...er, employeeEmail: '' }));
-    setSuccessEmail(''); setSentToken(''); setErrorMsg('');
+    setSuccessEmail(''); setSentToken(''); setErrorMsg(''); setLimitReached(false);
   };
 
   const validate = () => {
@@ -107,7 +199,7 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
 
     setLoading(true);
-    setSuccessEmail(''); setSentToken(''); setErrorMsg(''); setCopied(false);
+    setSuccessEmail(''); setSentToken(''); setErrorMsg(''); setCopied(false); setLimitReached(false);
 
     try {
       const res = await API.post(`${apiBase}/send`, {
@@ -118,6 +210,13 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
 
       setSuccessEmail(form.employeeEmail);
       setSentToken(res.data.tokenId);
+
+      // Update quota locally
+      if (res.data.tokenLimit !== undefined) {
+        setQuota({ tokenLimit: res.data.tokenLimit, tokensUsed: res.data.tokensUsed });
+      } else {
+        setQuota((q) => ({ ...q, tokensUsed: q.tokensUsed + 1 }));
+      }
 
       setHistory((h) => [{
         _id:           res.data._id || Date.now().toString(),
@@ -132,12 +231,22 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
       setForm({ facilityCode: '', accessCode: '', employeeEmail: '' });
 
     } catch (err) {
-      setErrorMsg(err.response?.data?.message || 'Failed to send token. Please try again.');
+      if (err.response?.data?.limitReached) {
+        setLimitReached(true);
+        // Sync quota from server response
+        setQuota({
+          tokenLimit: err.response.data.tokenLimit,
+          tokensUsed: err.response.data.tokensUsed,
+        });
+      } else {
+        setErrorMsg(err.response?.data?.message || 'Failed to send token. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // ── Delete handlers ─────────────────────────────────────────────────────────
   const openDeleteSingle = (id, index) => setConfirm({ mode: 'single', id, index });
   const openDeleteAll    = ()           => setConfirm({ mode: 'all' });
   const closeConfirm     = ()           => { if (!deleting) setConfirm(null); };
@@ -153,12 +262,18 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
         setHistory((h) => h.filter((_, i) => i !== confirm.index));
       }
       setConfirm(null);
+      // Re-fetch quota after deletion so the bar updates
+      await fetchQuota();
     } catch (err) {
       alert(err.response?.data?.message || 'Delete failed. Please try again.');
     } finally {
       setDeleting(false);
     }
   };
+
+  const isLimitBlocked = quota.tokenLimit !== null &&
+    quota.tokenLimit !== undefined &&
+    quota.tokensUsed >= quota.tokenLimit;
 
   return (
     <div className="admin-page">
@@ -168,7 +283,8 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
       )}
 
       <div className="admin-page-header">
-        <div className="admin-page-header-icon" style={{ background: accentColor, color: '#1565c0' }}>🔑</div>
+        <div className="admin-page-header-icon" style={{ background: accentColor, color: '#1565c0' }}><IconKey size={22} color="#1565c0" />
+</div>
         <div>
           <h1 className="admin-page-title">Token Generation</h1>
           <p className="admin-page-subtitle">
@@ -179,16 +295,21 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
 
       <div className="tg-layout">
 
-        {/* Form card */}
+        {/* ── Form card ── */}
         <div className="tg-card">
           <h2 className="tg-card-title">Generate Token</h2>
 
+          {/* Quota bar — only for vendor/user */}
+          <QuotaBar used={quota.tokensUsed} limit={quota.tokenLimit} />
+
           <form onSubmit={handleSubmit} noValidate>
+
             <div className="tg-field">
               <label className="tg-label">Facility Code <span className="tg-tag">12-bit · max 4,095</span></label>
               <input type="text" inputMode="numeric" name="facilityCode" value={form.facilityCode}
                 onChange={handleNumberInput} placeholder="Enter facility code (0 – 4095)" maxLength={4}
-                className={`tg-input ${errors.facilityCode ? 'tg-input--error' : ''}`} autoComplete="off" />
+                className={`tg-input ${errors.facilityCode ? 'tg-input--error' : ''}`} autoComplete="off"
+                disabled={isLimitBlocked} />
               {errors.facilityCode && <p className="tg-error">{errors.facilityCode}</p>}
             </div>
 
@@ -196,7 +317,8 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
               <label className="tg-label">Access Code <span className="tg-tag">24-bit · max 16,777,215</span></label>
               <input type="text" inputMode="numeric" name="accessCode" value={form.accessCode}
                 onChange={handleNumberInput} placeholder="Enter access code (0 – 16777215)" maxLength={8}
-                className={`tg-input ${errors.accessCode ? 'tg-input--error' : ''}`} autoComplete="off" />
+                className={`tg-input ${errors.accessCode ? 'tg-input--error' : ''}`} autoComplete="off"
+                disabled={isLimitBlocked} />
               {errors.accessCode && <p className="tg-error">{errors.accessCode}</p>}
             </div>
 
@@ -204,19 +326,26 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
               <label className="tg-label">Employee Email</label>
               <input type="email" name="employeeEmail" value={form.employeeEmail}
                 onChange={handleEmailInput} placeholder="employee@company.com"
-                className={`tg-input ${errors.employeeEmail ? 'tg-input--error' : ''}`} autoComplete="off" />
+                className={`tg-input ${errors.employeeEmail ? 'tg-input--error' : ''}`} autoComplete="off"
+                disabled={isLimitBlocked} />
               {errors.employeeEmail && <p className="tg-error">{errors.employeeEmail}</p>}
             </div>
 
-            <button type="submit" className="tg-btn" disabled={loading}>
+            <button type="submit" className="tg-btn" disabled={loading || isLimitBlocked}
+              style={isLimitBlocked ? { background: '#9ca3af', cursor: 'not-allowed' } : {}}>
               {loading
                 ? <><span className="tg-spinner" /> Sending Token...</>
-                : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Token</>}
+                : isLimitBlocked
+                  ? <>Token Limit Reached</>
+                  : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Token</>}
             </button>
           </form>
 
-          {/* Success — shown below button */}
-          {successEmail && (
+          {/* Limit reached banner */}
+          {(limitReached || isLimitBlocked) && <LimitReachedBanner role={role} />}
+
+          {/* Success */}
+          {successEmail && !limitReached && (
             <div className="tg-success-block" style={{ marginTop: '1rem' }}>
               <div className="tg-success-top">
                 <span className="tg-success-check">✓</span>
@@ -228,7 +357,7 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
               <div className="tg-token-box">
                 <div className="tg-token-label-row">
                   <span className="tg-token-label">Token ID</span>
-                  <button className={`tg-copy-btn ${copied ? 'tg-copy-btn--copied' : ''}`} onClick={handleCopy} title="Copy token">
+                  <button className={`tg-copy-btn ${copied ? 'tg-copy-btn--copied' : ''}`} onClick={handleCopy}>
                     {copied ? <><CheckIcon /> Copied!</> : <><CopyIcon /> Copy</>}
                   </button>
                 </div>
@@ -237,8 +366,8 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
             </div>
           )}
 
-          {/* Error — shown below button */}
-          {errorMsg && (
+          {/* Generic error */}
+          {errorMsg && !limitReached && (
             <div className="tg-banner tg-banner--error" style={{ marginTop: '1rem' }}>
               <span className="tg-banner-icon">✕</span>
               <div>
@@ -256,7 +385,7 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
           </div>
         </div>
 
-        {/* History panel */}
+        {/* ── History panel ── */}
         <div className="tg-history">
           <div className="tg-history-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

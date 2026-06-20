@@ -16,6 +16,7 @@ const StatusBadge = ({ status }) => {
     }}>{s.label}</span>
   );
 };
+
 const IconMail = ({ size = 16, color = 'currentColor' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
@@ -119,7 +120,7 @@ const PROVIDERS = {
     host:        'smtppro.zoho.com',
     port:        '465',
     secure:      true,
-    accentColor: '#020202',
+    accentColor: '#E42527',
     badgeColor:  '#E42527',
   },
 };
@@ -146,12 +147,12 @@ const ZOHO_SETUP_STEPS = [
 const EMPTY_FORM = {
   smtpUser:  '',
   smtpPass:  '',
-  fromName:  '',
+  fromName:  'EI RFID Solutions',
   fromEmail: '',
 };
 
 // ── Main component ────────────────────────────────────────────────────────────
-const EmailConfiguration = () => {
+const VendorEmailConfiguration = () => {
   const [form,        setForm]        = useState(EMPTY_FORM);
   const [provider,    setProvider]    = useState('gmail');
   const [savedConfig, setSavedConfig] = useState(null);
@@ -165,7 +166,7 @@ const EmailConfiguration = () => {
 
   const loadConfig = useCallback(async () => {
     try {
-      const res = await API.get('/admin/email-config');
+      const res = await API.get('/admin/email-config/vendor');
       const c   = res.data.config;
       setSavedConfig(c);
       if (c.provider) setProvider(c.provider);
@@ -192,7 +193,7 @@ const EmailConfiguration = () => {
 
     if (!emailVal) { setSaveMsg({ type: 'error', text: `${userLabel} is required.` }); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
-      setSaveMsg({ type: 'error', text: `Enter a valid email address.` }); return;
+      setSaveMsg({ type: 'error', text: 'Enter a valid email address.' }); return;
     }
     if (provider === 'gmail' && !emailVal.toLowerCase().endsWith('@gmail.com')) {
       setSaveMsg({ type: 'error', text: 'Gmail sender must be a @gmail.com address.' }); return;
@@ -204,7 +205,7 @@ const EmailConfiguration = () => {
 
     setSaving(true); setSaveMsg({ type: '', text: '' });
     try {
-      const res = await API.post('/admin/email-config', {
+      const res = await API.post('/admin/email-config/vendor', {
         provider,
         smtpUser:   form.smtpUser.trim(),
         smtpPass:   form.smtpPass.trim(),
@@ -244,7 +245,6 @@ const EmailConfiguration = () => {
       setTestMsg({ type: 'error', text: 'Enter a valid email address.' }); return;
     }
 
-    // Check if the currently selected provider tab is configured
     if (!savedConfig?.smtpUser || savedConfig.provider !== provider) {
       const provLabel = PROVIDERS[provider]?.label || provider;
       setTestMsg({ type: 'error', text: `${provLabel} is not configured yet. Save your ${provLabel} settings first before testing.` });
@@ -253,7 +253,7 @@ const EmailConfiguration = () => {
 
     setTesting(true); setTestMsg({ type: '', text: '' });
     try {
-      const res = await API.post('/admin/email-config/test', { recipientEmail: testEmail.trim() });
+      const res = await API.post('/admin/email-config/vendor/test', { recipientEmail: testEmail.trim() });
       setTestMsg({ type: 'success', text: res.data.message });
       loadConfig();
     } catch (err) {
@@ -330,11 +330,12 @@ const EmailConfiguration = () => {
 
       {/* Header */}
       <div className="admin-page-header">
-        <div className="admin-page-header-icon" style={{ background: '#e3f2fd', color: '#1565c0' }}><IconMail size={22} color="#1565c0" /></div>
+        <div className="admin-page-header-icon" style={{ background: '#fce8e6', color: '#EA4335' }}><IconMail size={22} color="#1565c0" />
+</div>
         <div>
-          <h1 className="admin-page-title">Email Configuration</h1>
+          <h1 className="admin-page-title">Vendor Email Configuration</h1>
           <p className="admin-page-subtitle">
-            Configure the sender account. All system emails are sent from this address.
+            Configure the vendor sender account. Vendor-related emails are sent from this address.
           </p>
         </div>
       </div>
@@ -424,7 +425,7 @@ const EmailConfiguration = () => {
 
         {/* ── LEFT: Sender Settings ─────────────────────────────────────────── */}
         <div>
-          <Card title={`${prov.label}`} icon={prov.icon} accentColor={prov.accentColor}>
+          <Card title={`${prov.label} Sender Settings`} icon={prov.icon} accentColor={prov.accentColor}>
 
             {!editing && savedConfig?.smtpUser && savedConfig.provider === provider ? (
               // ── Summary view ──────────────────────────────────────────────
@@ -449,7 +450,7 @@ const EmailConfiguration = () => {
                   </div>
                 </div>
                 <p style={{ fontSize: '0.8rem', color: '#6b7280', lineHeight: 1.6, marginBottom: '1.2rem' }}>
-                  This {prov.label} account is currently used to send all system emails.
+                  This {prov.label} account is currently used to send all vendor emails.
                   Click below to switch to a different account.
                 </p>
                 <Btn onClick={handleChangeSender} color="#1976d2" variant="outline">
@@ -510,7 +511,7 @@ const EmailConfiguration = () => {
 
                 <Field label="Sender Display Name" hint='Appears as the "From" name in the email client.'>
                   <input name="fromName" value={form.fromName} onChange={handleChange}
-                    placeholder='INS Global' style={inputStyle} />
+                    placeholder="EI RFID Solutions" style={inputStyle} />
                 </Field>
 
                 <Field label="From Email Address" hint={ph.fromHint}>
@@ -553,7 +554,6 @@ const EmailConfiguration = () => {
               After saving, send a test email to verify your {prov.label} configuration is working.
             </p>
 
-            {/* Warning if current tab is not configured */}
             {(!savedConfig?.smtpUser || savedConfig.provider !== provider) && (
               <div style={{
                 padding: '10px 14px', borderRadius: 8, marginBottom: '1rem',
@@ -640,4 +640,4 @@ const EmailConfiguration = () => {
   );
 };
 
-export default EmailConfiguration;
+export default VendorEmailConfiguration;

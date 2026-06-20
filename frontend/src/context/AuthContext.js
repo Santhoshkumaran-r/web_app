@@ -1,15 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getMe } from '../utils/api';
 
-// Create the context
 const AuthContext = createContext(null);
 
-// Provider component — wraps your whole app
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // True while checking auth on app load
+  const [user, setUser]                     = useState(null);
+  const [loading, setLoading]               = useState(true);
+  const [showFirstLogin, setShowFirstLogin] = useState(false);  // ← NEW
 
-  // On app load, check if there's a stored token and fetch user info
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -30,9 +28,20 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
+
+    // Show modal if first login
+    if (userData.isFirstLogin) {       // ← NEW
+      setShowFirstLogin(true);         // ← NEW
+    }                                  // ← NEW
   };
 
-  // Call this to log out
+  // Called when user completes or skips the modal
+  const dismissFirstLogin = () => {   // ← NEW
+    setShowFirstLogin(false);          // ← NEW
+    // Update local user state so modal never shows again this session
+    setUser(prev => ({ ...prev, isFirstLogin: false }));  // ← NEW
+  };                                   // ← NEW
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -40,13 +49,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, showFirstLogin, dismissFirstLogin }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Custom hook — use this in any component: const { user, login, logout } = useAuth();
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) throw new Error('useAuth must be used within AuthProvider');

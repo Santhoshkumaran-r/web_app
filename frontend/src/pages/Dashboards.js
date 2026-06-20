@@ -39,8 +39,7 @@ const Dashboard = ({ icon, title, color }) => {
 };
 
 export const AdminDashboard = () => (
-  <Dashboard icon="🛡️" title="Admin Dashboard" color="#7c6bff" />
-);
+<Dashboard icon={<img src="/favicon.png" alt="logo" style={{width:'28px',height:'28px',objectFit:'contain'}} />} title="Admin Dashboard" color="#7c6bff" />);
 
 export const VendorDashboard = () => (
   <Dashboard icon="🏪" title="Vendor Dashboard" color="#22d3a5" />

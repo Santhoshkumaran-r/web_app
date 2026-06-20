@@ -6,7 +6,7 @@ const portals = [
     role: 'admin',
     title: 'Admin Portal',
     desc: 'Full system control. Manage users, vendors, and platform settings.',
-    icon: '🛡️',
+    icon: <img src="/favicon.png" alt="logo" style={{width:'40px',height:'40px',objectFit:'contain'}} />,
     color: '#7c6bff',
     path: '/admin/login',
     cardColorA: '#7c6bff',

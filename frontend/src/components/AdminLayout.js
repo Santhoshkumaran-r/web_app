@@ -14,15 +14,6 @@ const navItems = [
     ),
   },
   {
-    path: '/admin/token-generation',
-    label: 'Token Generation',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
-      </svg>
-    ),
-  },
-  {
     path: '/admin/email-configuration',
     label: 'Email Configuration',
     icon: (
@@ -34,7 +25,7 @@ const navItems = [
   },
   {
     path: '/admin/user-configuration',
-    label: 'User Configuration',
+    label: 'Vendor Management',
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -45,37 +36,120 @@ const navItems = [
     ),
   },
   {
-    path: '/admin/audit-logs',
-    label: 'Audit Logs',
+    path: '/admin/token-generation',
+    label: 'Token Generation',
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-        <line x1="16" y1="13" x2="8" y2="13" />
-        <line x1="16" y1="17" x2="8" y2="17" />
-        <polyline points="10 9 9 9 8 9" />
+        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
       </svg>
     ),
   },
 ];
 
+// ── Logout Confirmation Modal ─────────────────────────────────────────────────
+const LogoutModal = ({ user, onConfirm, onCancel }) => (
+  <div style={{
+    position: 'fixed', inset: 0, zIndex: 9999,
+    background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  }}>
+    <div style={{
+      background: '#fff', borderRadius: 16, padding: '32px 28px',
+      width: '100%', maxWidth: 380,
+      boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0,
+    }}>
+      {/* Icon */}
+      <div style={{
+        width: 56, height: 56, borderRadius: '50%',
+        background: '#fef2f2', border: '1.5px solid #fecaca',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        marginBottom: 16,
+      }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </div>
+
+      {/* Title */}
+      <h2 style={{ margin: '0 0 6px', fontSize: '1.1rem', fontWeight: 700, color: '#111827', textAlign: 'center' }}>
+        Sign Out
+      </h2>
+
+      {/* Message */}
+      <p style={{ margin: '0 0 24px', fontSize: '0.875rem', color: '#6b7280', textAlign: 'center', lineHeight: 1.6 }}>
+        Are you sure you want to sign out of the Admin Panel?
+        {user?.name && (
+          <><br /><strong style={{ color: '#374151' }}>{user.name}</strong> will need to log in again to access the dashboard.</>
+        )}
+      </p>
+
+      {/* Buttons */}
+      <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+        <button
+          onClick={onCancel}
+          style={{
+            flex: 1, padding: '10px 0', borderRadius: 8,
+            border: '1.5px solid #e5e7eb', background: '#fff',
+            fontSize: '0.875rem', fontWeight: 600, color: '#374151',
+            cursor: 'pointer',
+          }}
+        >
+          Stay
+        </button>
+        <button
+          onClick={onConfirm}
+          style={{
+            flex: 1, padding: '10px 0', borderRadius: 8,
+            border: 'none', background: '#ef4444',
+            fontSize: '0.875rem', fontWeight: 600, color: '#fff',
+            cursor: 'pointer',
+          }}
+        >
+          Yes, Sign Out
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// ── Main Layout ───────────────────────────────────────────────────────────────
 const AdminLayout = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed,     setCollapsed]     = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogoutClick  = () => setShowLogoutModal(true);
+  const handleLogoutCancel = () => setShowLogoutModal(false);
+  const handleLogoutConfirm = () => {
+    setShowLogoutModal(false);
     logout();
     navigate('/login');
   };
 
   return (
     <div className="admin-shell">
+
+      {/* Logout confirmation modal */}
+      {showLogoutModal && (
+        <LogoutModal
+          user={user}
+          onConfirm={handleLogoutConfirm}
+          onCancel={handleLogoutCancel}
+        />
+      )}
+
       {/* Sidebar */}
       <aside className={`admin-sidebar ${collapsed ? 'collapsed' : ''}`}>
+
         {/* Logo area */}
         <div className="sidebar-logo">
-          <div className="sidebar-logo-icon">🛡️</div>
+          <div className="sidebar-logo-icon">
+            <img src="/favicon.png" alt="logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
+          </div>
           {!collapsed && <span className="sidebar-logo-text">Admin Panel</span>}
         </div>
 
@@ -85,9 +159,7 @@ const AdminLayout = ({ children }) => {
             <NavLink
               key={item.path}
               to={item.path}
-              className={({ isActive }) =>
-                `sidebar-link ${isActive ? 'active' : ''}`
-              }
+              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               title={collapsed ? item.label : ''}
             >
               <span className="sidebar-link-icon">{item.icon}</span>
@@ -111,7 +183,7 @@ const AdminLayout = ({ children }) => {
           </div>
           <button
             className="sidebar-logout"
-            onClick={handleLogout}
+            onClick={handleLogoutClick}
             title="Sign out"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

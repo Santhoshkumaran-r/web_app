@@ -96,8 +96,8 @@ const Login = () => {
       <div className="login-container">
         {/* Left branding panel */}
         <div className="login-left">
-          <div className="brand-icon">🛡️</div>
-          <h1 className="brand-title">Welcome to the Platform</h1>
+        <div className="brand-icon"><img src="/favicon.png" alt="logo" style={{width:'48px',height:'48px',objectFit:'contain'}} /></div>          
+        <h1 className="brand-title">Welcome to the Platform</h1>
           <p className="brand-subtitle">
             A unified workspace for admins, vendors, and users. Sign in with your credentials to access your dashboard.
           </p>

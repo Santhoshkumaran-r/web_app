@@ -7,23 +7,33 @@ const authRoutes        = require('./routes/authRoutes');
 const adminTokenRoutes  = require('./routes/adminTokenRoutes');
 const vendorTokenRoutes = require('./routes/vendorTokenRoutes');
 const userTokenRoutes   = require('./routes/userTokenRoutes');
+const credentialRoutes  = require('./routes/credentialRoutes');
+const dashboardRoutes   = require('./routes/dashboardRoutes');
+const emailConfigRoutes = require('./routes/emailConfigRoutes');
 
 const app = express();
 
 connectDB();
 
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: [
+    'http://localhost:3000',
+    'http://192.168.1.9:3000',
+  ],
   credentials: true,
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ── Routes ──────────────────────────────────────────────────────────────────
-app.use('/api/auth',         authRoutes);
-app.use('/api/admin/token',  adminTokenRoutes);   // → admintokens  collection
-app.use('/api/vendor/token', vendorTokenRoutes);  // → vendortokens collection
-app.use('/api/user/token',   userTokenRoutes);    // → usertokens   collection
+// ── Routes ───────────────────────────────────────────────────────────────────
+app.use('/api/auth',               authRoutes);
+app.use('/api/admin/token',        adminTokenRoutes);
+app.use('/api/vendor/token',       vendorTokenRoutes);
+app.use('/api/user/token',         userTokenRoutes);
+app.use('/api/admin/credentials',  credentialRoutes);
+app.use('/api/vendor/credentials', credentialRoutes);
+app.use('/api/dashboard',          dashboardRoutes);
+app.use('/api/admin/email-config', emailConfigRoutes);
 
 app.get('/', (req, res) => res.json({ message: '🚀 Auth API running', status: 'OK' }));
 

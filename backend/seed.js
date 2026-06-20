@@ -23,7 +23,7 @@ const seed = async () => {
     // Create default admin
     await User.create({
       name: 'Super Admin',
-      email: 'admin@example.com',
+      email: 'admin@ins.com', 
       password: 'Admin@123',   // ← Change this immediately after first login!
       role: 'admin',
     });
@@ -45,7 +45,7 @@ const seed = async () => {
     });
 
     console.log(' Seed complete! Accounts created:');
-    console.log('   Admin:  admin@example.com  /  Admin@123');
+    console.log('   Admin:  admin@ins.com  /  Admin@123');
     console.log('   Vendor: vendor@example.com /  Vendor@123');
     console.log('   User:   user@example.com   /  User@123');
     console.log('\n Please change these passwords after first login!');

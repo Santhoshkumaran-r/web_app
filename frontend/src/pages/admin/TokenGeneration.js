@@ -4,6 +4,14 @@ import API from '../../utils/api';
 const FACILITY_MAX = 4095;
 const ACCESS_MAX   = 16777215;
 
+const IconKey        = ({ size = 16, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="7.5" cy="15.5" r="5.5"/>
+    <path d="M21 2l-9.6 9.6"/>
+    <path d="M15.5 7.5l3 3L22 7l-3-3"/>
+  </svg>
+);
+
 // ── SVG Icons ────────────────────────────────────────────────────────────────
 const CopyIcon   = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>;
 const CheckIcon  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>;
@@ -195,8 +203,9 @@ const TokenGeneration = () => {
 
       {/* Page header */}
       <div className="admin-page-header">
-        <div className="admin-page-header-icon" style={{ background: '#e3f2fd', color: '#1565c0' }}>🔑</div>
-        <div>
+<div className="admin-page-header-icon" style={{ background: '#e3f2fd', color: '#1565c0' }}>
+  <IconKey size={22} color="#1565c0" />
+</div>        <div>
           <h1 className="admin-page-title">Token Generation</h1>
           <p className="admin-page-subtitle">
             Generate a secure AES-256 encrypted token and send it to an employee's email.

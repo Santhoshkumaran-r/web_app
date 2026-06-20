@@ -8,7 +8,7 @@ export const AdminLogin = () => (
     config={{
       accent: '#7c6bff',
       accentDark: '#5a4dd4',
-      icon: '🛡️',
+      icon: <img src="/favicon.png" alt="logo" style={{width:'40px',height:'40px',objectFit:'contain'}} />,
       title: 'Admin Control Center',
       subtitle: 'Secure access to platform management, user control, and system settings.',
       badge: 'Administrator',

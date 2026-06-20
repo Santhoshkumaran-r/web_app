@@ -9,34 +9,109 @@ const navItems = [
     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
   },
   {
+    path: '/user/email-configuration',
+    label: 'Email Configuration',
+    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+  },
+  {
     path: '/user/token-generation',
     label: 'Token Generation',
     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>,
   },
-  {
-    path: '/user/my-orders',
-    label: 'My Orders',
-    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
-  },
-  {
-    path: '/user/profile',
-    label: 'My Profile',
-    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
-  },
 ];
 
+// ── Logout Confirmation Modal ─────────────────────────────────────────────────
+const LogoutModal = ({ user, onConfirm, onCancel }) => (
+  <div style={{
+    position: 'fixed', inset: 0, zIndex: 9999,
+    background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  }}>
+    <div style={{
+      background: '#fff', borderRadius: 16, padding: '32px 28px',
+      width: '100%', maxWidth: 380,
+      boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+    }}>
+      <div style={{
+        width: 56, height: 56, borderRadius: '50%',
+        background: '#fef2f2', border: '1.5px solid #fecaca',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        marginBottom: 16,
+      }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </div>
+      <h2 style={{ margin: '0 0 6px', fontSize: '1.1rem', fontWeight: 700, color: '#111827', textAlign: 'center' }}>
+        Sign Out
+      </h2>
+      <p style={{ margin: '0 0 24px', fontSize: '0.875rem', color: '#6b7280', textAlign: 'center', lineHeight: 1.6 }}>
+        Are you sure you want to sign out of your account?
+        {user?.name && (
+          <><br /><strong style={{ color: '#374151' }}>{user.name}</strong> will need to log in again to access the dashboard.</>
+        )}
+      </p>
+      <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+        <button onClick={onCancel} style={{
+          flex: 1, padding: '10px 0', borderRadius: 8,
+          border: '1.5px solid #e5e7eb', background: '#fff',
+          fontSize: '0.875rem', fontWeight: 600, color: '#374151', cursor: 'pointer',
+        }}>Stay</button>
+        <button onClick={onConfirm} style={{
+          flex: 1, padding: '10px 0', borderRadius: 8,
+          border: 'none', background: '#ef4444',
+          fontSize: '0.875rem', fontWeight: 600, color: '#fff', cursor: 'pointer',
+        }}>Yes, Sign Out</button>
+      </div>
+    </div>
+  </div>
+);
+
+// ── Main Layout ───────────────────────────────────────────────────────────────
 const UserLayout = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed,       setCollapsed]       = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  const handleLogoutClick   = () => setShowLogoutModal(true);
+  const handleLogoutCancel  = () => setShowLogoutModal(false);
+  const handleLogoutConfirm = () => {
+    setShowLogoutModal(false);
+    logout();
+    navigate('/login');
+  };
 
   return (
     <div className="admin-shell">
+      {showLogoutModal && (
+        <LogoutModal user={user} onConfirm={handleLogoutConfirm} onCancel={handleLogoutCancel} />
+      )}
       <aside className={`admin-sidebar user-sidebar ${collapsed ? 'collapsed' : ''}`}>
+
+        {/* ── Logo / Brand ── */}
         <div className="sidebar-logo">
-          <div className="sidebar-logo-icon" style={{ background: '#f59e0b15' }}>👤</div>
-          {!collapsed && <span className="sidebar-logo-text">My Account</span>}
+          <div className="sidebar-logo-icon" style={{ background: '#fef9e7', color: '#a16207' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a16207" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 21h18"/>
+              <path d="M5 21V7l8-4v18"/>
+              <path d="M19 21V11l-6-4"/>
+              <line x1="9" y1="9" x2="9" y2="9.01"/>
+              <line x1="9" y1="12" x2="9" y2="12.01"/>
+              <line x1="9" y1="15" x2="9" y2="15.01"/>
+              <line x1="9" y1="18" x2="9" y2="18.01"/>
+            </svg>
+          </div>
+          {!collapsed && (
+            <span className="sidebar-logo-text" style={{ fontWeight: 700 }}>
+              {user?.name || 'My Account'}
+            </span>
+          )}
         </div>
+
         <nav className="sidebar-nav">
           {navItems.map((item) => (
             <NavLink key={item.path} to={item.path}
@@ -47,9 +122,13 @@ const UserLayout = ({ children }) => {
             </NavLink>
           ))}
         </nav>
+
+        {/* ── Footer ── */}
         <div className="sidebar-footer">
           <div className="sidebar-user">
-            <div className="sidebar-avatar" style={{ background: '#f59e0b' }}>{user?.name?.charAt(0).toUpperCase()}</div>
+            <div className="sidebar-avatar" style={{ background: '#f59e0b' }}>
+              {user?.name?.charAt(0).toUpperCase()}
+            </div>
             {!collapsed && (
               <div className="sidebar-user-info">
                 <p className="sidebar-user-name">{user?.name}</p>
@@ -57,18 +136,22 @@ const UserLayout = ({ children }) => {
               </div>
             )}
           </div>
-          <button className="sidebar-logout" onClick={() => { logout(); navigate('/login'); }} title="Sign out">
+          <button className="sidebar-logout" onClick={handleLogoutClick} title="Sign out">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
             </svg>
           </button>
         </div>
+
         <button className="sidebar-collapse-btn" onClick={() => setCollapsed(!collapsed)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
             style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
             <polyline points="15 18 9 12 15 6"/>
           </svg>
         </button>
+
       </aside>
       <main className="admin-main">{children}</main>
     </div>

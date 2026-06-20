@@ -100,6 +100,8 @@ router.post('/login', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        isFirstLogin: user.isFirstLogin,   // ← ADD THIS
+
       },
     });
   } catch (error) {
@@ -149,5 +151,51 @@ router.post('/create-admin', protect, restrictTo('admin'), async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+// ─────────────────────────────────────────────
+// @route   PUT /api/auth/change-password
+// @desc    Change password (clears isFirstLogin flag)
+// @access  Private
+// ─────────────────────────────────────────────
+router.put('/change-password', protect, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
 
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new password are required.' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 6 characters.' });
+    }
+
+    const user = await User.findById(req.user._id).select('+password');
+    const isMatch = await user.comparePassword(currentPassword);
+
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+    }
+
+    user.password = newPassword;
+    user.isFirstLogin = false;
+    await user.save(); // bcrypt hash triggers automatically via pre-save hook
+
+    res.status(200).json({ success: true, message: 'Password changed successfully.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// @route   PUT /api/auth/skip-password-change
+// @desc    User chooses to keep current password — clears isFirstLogin flag
+// @access  Private
+// ─────────────────────────────────────────────
+router.put('/skip-password-change', protect, async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user._id, { isFirstLogin: false });
+    res.status(200).json({ success: true, message: 'Preference saved.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 module.exports = router;
