@@ -10,6 +10,7 @@ const userTokenRoutes   = require('./routes/userTokenRoutes');
 const credentialRoutes  = require('./routes/credentialRoutes');
 const dashboardRoutes   = require('./routes/dashboardRoutes');
 const emailConfigRoutes = require('./routes/emailConfigRoutes');
+const deeplinkRoute     = require('./routes/deeplinkRoutes');
 
 const app = express();
 
@@ -19,6 +20,8 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://192.168.1.9:3000',
+    'https://ei900.eirfid.com',
+    'http://ei900.eirfid.com',
   ],
   credentials: true,
 }));
@@ -34,6 +37,7 @@ app.use('/api/admin/credentials',  credentialRoutes);
 app.use('/api/vendor/credentials', credentialRoutes);
 app.use('/api/dashboard',          dashboardRoutes);
 app.use('/api/admin/email-config', emailConfigRoutes);
+app.use('/',                       deeplinkRoute);
 
 app.get('/', (req, res) => res.json({ message: '🚀 Auth API running', status: 'OK' }));
 
@@ -44,5 +48,5 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: 'Something went wrong.' });
 });
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 10001;
 app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));

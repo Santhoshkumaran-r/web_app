@@ -7,6 +7,11 @@ const tokenSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    clientName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     facilityCode: {
       type: Number,
       required: true,
@@ -14,6 +19,16 @@ const tokenSchema = new mongoose.Schema(
     accessCode: {
       type: Number,
       required: true,
+    },
+    firstName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      required: true,
+      trim: true,
     },
     employeeEmail: {
       type: String,
@@ -23,11 +38,11 @@ const tokenSchema = new mongoose.Schema(
     },
     generatedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',   // which admin generated this
+      ref: 'User',
       required: true,
     },
     generatedByEmail: {
-      type: String,  // stored flat for easy display in logs
+      type: String,
     },
     sentAt: {
       type: Date,
@@ -41,5 +56,3 @@ const tokenSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
-module.exports = mongoose.model('Token', tokenSchema);

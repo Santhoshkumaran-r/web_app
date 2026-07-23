@@ -1,7 +1,6 @@
 import axios from 'axios';
 
 // Uses relative URL so CRA proxy (package.json → "proxy": "http://localhost:10001")
-// forwards all /api requests to the backend. Works for both local dev and production.
 const API = axios.create({
   baseURL: '/api',
 });

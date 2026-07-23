@@ -79,6 +79,35 @@ const generateIBeaconToken = (facilityDecimal, accessDecimal) => {
   };
 };
 
+// ── Shared field validator — used by both /send and /bulk-import ─────────────
+// Returns an error message string, or null if the row is valid.
+const validateTokenFields = ({ clientName, facilityCode, accessCode, firstName, lastName, employeeEmail }) => {
+  if (!clientName) return 'Client name is required.';
+  if (facilityCode === undefined || facilityCode === null || facilityCode === '') return 'Facility code is required.';
+  if (accessCode === undefined || accessCode === null || accessCode === '') return 'Access code is required.';
+  if (!firstName) return 'First name is required.';
+  if (!lastName) return 'Last name is required.';
+  if (!employeeEmail) return 'Employee email is required.';
+
+  const fc = parseInt(facilityCode, 10);
+  const ac = parseInt(accessCode, 10);
+  if (isNaN(fc) || fc < 0 || fc > 4095) return 'Facility code must be 0 – 4095 (12-bit).';
+  if (isNaN(ac) || ac < 0 || ac > 16777215) return 'Access code must be 0 – 16777215 (24-bit).';
+  if (!/^\S+@\S+\.\S+$/.test(employeeEmail)) return 'Invalid employee email address.';
+  return null;
+};
+
+// ── In-memory bulk-import job store ───────────────────────────────────────────
+// Works for a single PM2 process (fork mode), which matches your current
+// ei900-backend deploy. If this ever runs in PM2 cluster mode across multiple
+// processes, move this to Redis or a Mongo collection — an in-memory Map is
+// not shared across processes, so status polling would hit the wrong worker.
+const bulkJobs        = new Map();
+const BULK_JOB_TTL_MS = 60 * 60 * 1000; // jobs are garbage-collected after 1 hour
+const MAX_BULK_ROWS   = 2000;
+const EMAIL_SEND_DELAY_MS = 350; // spacing between sends — keeps you under Gmail's per-second rate limits
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // ── Nodemailer transporter ────────────────────────────────────────────────────
 const createTransporter = () => nodemailer.createTransport({
   service: 'gmail',
@@ -89,7 +118,7 @@ const createTransporter = () => nodemailer.createTransport({
 });
 
 // ── Email HTML template ───────────────────────────────────────────────────────
-const buildEmailHTML = ({ tokenId, employeeEmail, adminName, issuedAt }) => `
+const buildEmailHTML = ({ tokenId, employeeEmail, adminName, issuedAt, firstName, lastName }) => `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -106,7 +135,7 @@ const buildEmailHTML = ({ tokenId, employeeEmail, adminName, issuedAt }) => `
     <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:36px;">
 
       <p style="font-size:16px;color:#374151;margin:0 0 28px;line-height:1.7;">
-        Hello, your access token has been issued by <strong style="color:#1565c0;">${adminName}</strong>. Please find your secure token below.
+        Hello ${firstName} ${lastName}, your access token has been issued by <strong style="color:#1565c0;">${adminName}</strong>. Please find your secure token below.
       </p>
 
       <!-- Token box -->
@@ -155,31 +184,16 @@ const buildEmailHTML = ({ tokenId, employeeEmail, adminName, issuedAt }) => `
 // Protected: admin only
 router.post('/send', protect, restrictTo('admin'), async (req, res) => {
   try {
-    const { facilityCode, accessCode, employeeEmail } = req.body;
+    const { clientName, facilityCode, accessCode, firstName, lastName, employeeEmail } = req.body;
 
     // ── 1. Validate ───────────────────────────────────────────────────────────
-    if (!facilityCode && facilityCode !== 0) {
-      return res.status(400).json({ success: false, message: 'Facility code is required.' });
-    }
-    if (!accessCode && accessCode !== 0) {
-      return res.status(400).json({ success: false, message: 'Access code is required.' });
-    }
-    if (!employeeEmail) {
-      return res.status(400).json({ success: false, message: 'Employee email is required.' });
+    const validationError = validateTokenFields({ clientName, facilityCode, accessCode, firstName, lastName, employeeEmail });
+    if (validationError) {
+      return res.status(400).json({ success: false, message: validationError });
     }
 
     const fc = parseInt(facilityCode, 10);
     const ac = parseInt(accessCode,   10);
-
-    if (isNaN(fc) || fc < 0 || fc > 4095) {
-      return res.status(400).json({ success: false, message: 'Facility code must be 0 – 4095 (12-bit).' });
-    }
-    if (isNaN(ac) || ac < 0 || ac > 16777215) {
-      return res.status(400).json({ success: false, message: 'Access code must be 0 – 16777215 (24-bit).' });
-    }
-    if (!/^\S+@\S+\.\S+$/.test(employeeEmail)) {
-      return res.status(400).json({ success: false, message: 'Invalid employee email address.' });
-    }
 
     // ── 2. Get admin identity from JWT (set by protect middleware) ────────────
     const adminName  = req.user.name;
@@ -198,14 +212,17 @@ router.post('/send', protect, restrictTo('admin'), async (req, res) => {
       from:    `"${adminName} via Platform" <${process.env.EMAIL_USER}>`,
       to:      employeeEmail,
       subject: `Your Access Token — EI RFID Solutions`,
-      html:    buildEmailHTML({ tokenId, employeeEmail, adminName, issuedAt }),
+      html:    buildEmailHTML({ tokenId, employeeEmail, adminName, issuedAt, firstName, lastName }),
     });
 
     // ── 5. Save to MongoDB for audit trail ────────────────────────────────────
     await Token.create({
       token:            tokenId,
+      clientName,
       facilityCode:     fc,
       accessCode:       ac,
+      firstName,
+      lastName,
       employeeEmail,
       generatedBy:      req.user._id,
       generatedByEmail: adminEmail,
@@ -240,6 +257,122 @@ router.post('/send', protect, restrictTo('admin'), async (req, res) => {
 
     res.status(500).json({ success: false, message: 'Failed to send token. Please try again.' });
   }
+});
+
+// ── POST /api/token/bulk-import ───────────────────────────────────────────────
+// Body: { rows: [{ clientName, facilityCode, accessCode, firstName, lastName, employeeEmail }, ...] }
+// Starts an async background job (never blocks the request — 100 to 1000 rows
+// would otherwise time out the HTTP connection while emails send one by one).
+// Responds immediately with a jobId; poll /bulk-import/:jobId/status for progress.
+router.post('/bulk-import', protect, restrictTo('admin'), async (req, res) => {
+  const { rows } = req.body;
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ success: false, message: 'No rows found to import.' });
+  }
+  if (rows.length > MAX_BULK_ROWS) {
+    return res.status(400).json({ success: false, message: `Too many rows (${rows.length}). Max ${MAX_BULK_ROWS} per import.` });
+  }
+
+  const jobId = crypto.randomUUID();
+  const job = { id: jobId, total: rows.length, processed: 0, results: [], completed: false, startedAt: Date.now() };
+  bulkJobs.set(jobId, job);
+  setTimeout(() => bulkJobs.delete(jobId), BULK_JOB_TTL_MS);
+
+  // Respond right away — everything below runs in the background.
+  res.status(202).json({ success: true, jobId, total: rows.length });
+
+  const adminName  = req.user.name;
+  const adminEmail = req.user.email;
+  const adminId    = req.user._id;
+
+  (async () => {
+    const transporter = createTransporter();
+    try {
+      await transporter.verify();
+    } catch (e) {
+      // SMTP unreachable — fail every row up front rather than hanging on each one.
+      job.results = rows.map((r, i) => ({
+        row: i + 2, // +2 accounts for the header row + 1-indexed spreadsheet rows
+        employeeEmail: r.employeeEmail || '',
+        status: 'failed',
+        message: 'Could not connect to email server.',
+      }));
+      job.processed = rows.length;
+      job.completed = true;
+      return;
+    }
+
+    for (let i = 0; i < rows.length; i++) {
+      const raw = rows[i] || {};
+      const rowNum = i + 2;
+      const clientName    = raw.clientName?.toString().trim();
+      const firstName     = raw.firstName?.toString().trim();
+      const lastName      = raw.lastName?.toString().trim();
+      const employeeEmail = raw.employeeEmail?.toString().trim();
+      const facilityCode  = raw.facilityCode;
+      const accessCode    = raw.accessCode;
+
+      const validationError = validateTokenFields({ clientName, facilityCode, accessCode, firstName, lastName, employeeEmail });
+      if (validationError) {
+        job.results.push({ row: rowNum, employeeEmail: employeeEmail || '', status: 'failed', message: validationError });
+        job.processed++;
+        continue;
+      }
+
+      const fc = parseInt(facilityCode, 10);
+      const ac = parseInt(accessCode, 10);
+
+      try {
+        const { tokenId } = generateIBeaconToken(fc, ac);
+        const issuedAt = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+
+        await transporter.sendMail({
+          from:    `"${adminName} via Platform" <${process.env.EMAIL_USER}>`,
+          to:      employeeEmail,
+          subject: `Your Access Token — EI RFID Solutions`,
+          html:    buildEmailHTML({ tokenId, employeeEmail, adminName, issuedAt, firstName, lastName }),
+        });
+
+        await Token.create({
+          token: tokenId, clientName, facilityCode: fc, accessCode: ac,
+          firstName, lastName, employeeEmail,
+          generatedBy: adminId, generatedByEmail: adminEmail, status: 'sent',
+        });
+
+        job.results.push({ row: rowNum, employeeEmail, status: 'success', tokenId, message: 'Token sent.' });
+      } catch (err) {
+        job.results.push({
+          row: rowNum,
+          employeeEmail,
+          status: 'failed',
+          message: (err.code === 'EAUTH' || err.responseCode === 535)
+            ? 'Email authentication failed.'
+            : 'Failed to send email — token was not generated.',
+        });
+      }
+
+      job.processed++;
+      if (i < rows.length - 1) await sleep(EMAIL_SEND_DELAY_MS);
+    }
+
+    job.completed = true;
+  })();
+});
+
+// ── GET /api/token/bulk-import/:jobId/status ──────────────────────────────────
+router.get('/bulk-import/:jobId/status', protect, restrictTo('admin'), (req, res) => {
+  const job = bulkJobs.get(req.params.jobId);
+  if (!job) {
+    return res.status(404).json({ success: false, message: 'Import job not found or expired.' });
+  }
+  res.status(200).json({
+    success:   true,
+    total:     job.total,
+    processed: job.processed,
+    completed: job.completed,
+    results:   job.results,
+  });
 });
 
 // ── GET /api/token/history ────────────────────────────────────────────────────

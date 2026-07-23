@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import TokenPage from '../../components/TokenPage';
+import TokenGeneration from '../../pages/admin/TokenGeneration';
 import API from '../../utils/api';
 
 const EmailWarningBanner = () => (
@@ -44,7 +44,7 @@ const VendorTokenGeneration = () => {
         </div>
       )}
       <div style={{ opacity: emailReady === false ? 0.45 : 1, pointerEvents: emailReady === false ? 'none' : 'auto' }}>
-        <TokenPage
+        <TokenGeneration
           apiBase="/vendor/token"
           accentColor="#e8f5f1"
           role="Vendor"

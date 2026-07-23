@@ -61,7 +61,6 @@ const sendMail = async ({ to, subject, html, text, ownerId = null }) => {
 
   const transporter = buildTransporter(cfg);
   const fromAddress = `"${cfg.fromName || 'EI RFID Solutions'}" <${cfg.fromEmail || cfg.smtpUser}>`;
-
   try {
     const info = await transporter.sendMail({
       from: fromAddress, to, subject, html,
@@ -108,4 +107,4 @@ const sendTestMail = async (cfg, recipientEmail) => {
   });
 };
 
-module.exports = { sendMail, sendTestMail, getConfig, buildTransporter };
+module.exports = { sendMail, sendTestMail, getConfig, buildTransporter }; 

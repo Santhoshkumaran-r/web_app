@@ -701,6 +701,20 @@ body {
 
 .tg-history-list { display: flex; flex-direction: column; }
 
+/* Month/date group headers above each batch of history rows */
+.tg-history-group {
+  margin-bottom: 20px;
+}
+
+.tg-history-group-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0 0 8px 4px;
+}
+
 .tg-history-item {
   padding: 12px 0;
   border-bottom: 1px solid var(--gray-100);
@@ -1038,6 +1052,7 @@ body {
   border-color: #fecaca;
   color: #dc2626;
 }
+
 /* Generated Token Block - positioned above the form */
 .tg-generated-token-block {
   margin-bottom: 24px;
@@ -1064,4 +1079,91 @@ body {
   margin-top: 12px;
   padding-top: 10px;
   border-top: 1px solid #e5e7eb;
+}
+
+/* ── Date picker button (Token History calendar filter) ──── */
+.tg-date-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tg-date-btn:hover {
+  background: #f3f4f6;
+}
+
+.tg-date-input-hidden {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tg-clear-date-btn {
+  padding: 8px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tg-clear-date-btn:hover {
+  background: #f3f4f6;
+}
+
+/* ── Pagination (Token History, per-day results) ──── */
+.tg-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.tg-page-btn {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 14px;
+  font-size: 16px;
+  font-weight: 500;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tg-page-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.tg-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tg-page-btn--active {
+  background: #1565c0;
+  border-color: #1565c0;
+  color: #fff;
+}
+
+.tg-page-ellipsis {
+  font-size: 16px;
+  color: #9ca3af;
+  padding: 0 4px;
 }

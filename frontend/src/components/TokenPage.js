@@ -111,9 +111,70 @@ const LimitReachedBanner = ({ role }) => {
   );
 };
 
+// ── Pagination Controls ───────────────────────────────────────────────────────
+const PaginationControls = ({ currentPage, totalPages, onPageChange }) => {
+  if (totalPages <= 1) return null;
+
+  // Build a compact page list: 1 ... p-1 p p+1 ... last
+  const pages = [];
+  const windowSize = 1;
+  for (let i = 1; i <= totalPages; i++) {
+    if (
+      i === 1 ||
+      i === totalPages ||
+      (i >= currentPage - windowSize && i <= currentPage + windowSize)
+    ) {
+      pages.push(i);
+    } else if (pages[pages.length - 1] !== '...') {
+      pages.push('...');
+    }
+  }
+
+  return (
+    <div className="tg-pagination">
+      <button
+        className="tg-page-btn"
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+      >
+        ‹ Prev
+      </button>
+
+      {pages.map((p, idx) =>
+        p === '...' ? (
+          <span key={`ellipsis-${idx}`} className="tg-page-ellipsis">…</span>
+        ) : (
+          <button
+            key={p}
+            className={`tg-page-btn ${p === currentPage ? 'tg-page-btn--active' : ''}`}
+            onClick={() => onPageChange(p)}
+          >
+            {p}
+          </button>
+        )
+      )}
+
+      <button
+        className="tg-page-btn"
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+      >
+        Next ›
+      </button>
+    </div>
+  );
+};
+
 // ── Main Component ────────────────────────────────────────────────────────────
 const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
-  const [form,         setForm]         = useState({ facilityCode: '', accessCode: '', employeeEmail: '' });
+  const [form,         setForm]         = useState({
+    clientName:    '',
+    facilityCode:  '',
+    accessCode:    '',
+    firstName:     '',
+    lastName:      '',
+    employeeEmail: '',
+  });
   const [errors,       setErrors]       = useState({});
   const [successEmail, setSuccessEmail] = useState('');
   const [sentToken,    setSentToken]    = useState('');
@@ -125,6 +186,10 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
   const [histLoading,  setHistLoading]  = useState(true);
   const [confirm,      setConfirm]      = useState(null);
   const [deleting,     setDeleting]     = useState(false);
+
+  // ── Pagination state ─────────────────────────────────────────────────────────
+  const [currentPage,  setCurrentPage]  = useState(1);
+  const TOKENS_PER_PAGE = 10;
 
   // Quota state — only relevant for vendor/user (not admin)
   const [quota, setQuota] = useState({ tokenLimit: null, tokensUsed: 0 });
@@ -152,6 +217,7 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
           _id: t._id?.toString() || t._id,
         }));
         setHistory(tokens);
+        setCurrentPage(1);
       })
       .catch(() => setHistory([]))
       .finally(() => setHistLoading(false));
@@ -168,6 +234,13 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
     setSuccessEmail(''); setSentToken(''); setErrorMsg(''); setLimitReached(false);
   };
 
+  const handleTextInput = (e) => {
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value }));
+    setErrors((er) => ({ ...er, [name]: '' }));
+    setSuccessEmail(''); setSentToken(''); setErrorMsg(''); setLimitReached(false);
+  };
+
   const handleEmailInput = (e) => {
     setForm((f) => ({ ...f, employeeEmail: e.target.value }));
     setErrors((er) => ({ ...er, employeeEmail: '' }));
@@ -176,10 +249,13 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
 
   const validate = () => {
     const errs = {};
+    if (!form.clientName) errs.clientName = 'Client name is required.';
     if (!form.facilityCode) errs.facilityCode = 'Facility code is required.';
     else if (parseInt(form.facilityCode, 10) > FACILITY_MAX) errs.facilityCode = `Max value is ${FACILITY_MAX.toLocaleString()} (12-bit).`;
     if (!form.accessCode) errs.accessCode = 'Access code is required.';
     else if (parseInt(form.accessCode, 10) > ACCESS_MAX) errs.accessCode = `Max value is ${ACCESS_MAX.toLocaleString()} (24-bit).`;
+    if (!form.firstName) errs.firstName = 'First name is required.';
+    if (!form.lastName) errs.lastName = 'Last name is required.';
     if (!form.employeeEmail) errs.employeeEmail = 'Employee email is required.';
     else if (!/^\S+@\S+\.\S+$/.test(form.employeeEmail)) errs.employeeEmail = 'Enter a valid email address.';
     return errs;
@@ -203,8 +279,11 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
 
     try {
       const res = await API.post(`${apiBase}/send`, {
+        clientName:    form.clientName,
         facilityCode:  parseInt(form.facilityCode, 10),
         accessCode:    parseInt(form.accessCode,   10),
+        firstName:     form.firstName,
+        lastName:      form.lastName,
         employeeEmail: form.employeeEmail,
       });
 
@@ -220,15 +299,28 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
 
       setHistory((h) => [{
         _id:           res.data._id || Date.now().toString(),
+        clientName:    form.clientName,
         token:         res.data.tokenId,
         facilityCode:  parseInt(form.facilityCode, 10),
         accessCode:    parseInt(form.accessCode,   10),
+        firstName:     form.firstName,
+        lastName:      form.lastName,
         employeeEmail: form.employeeEmail,
         sentAt:        new Date().toISOString(),
         status:        'sent',
       }, ...h].slice(0, 50));
 
-      setForm({ facilityCode: '', accessCode: '', employeeEmail: '' });
+      // New token was added at the top — jump back to page 1 so the user sees it
+      setCurrentPage(1);
+
+      setForm({
+        clientName:    '',
+        facilityCode:  '',
+        accessCode:    '',
+        firstName:     '',
+        lastName:      '',
+        employeeEmail: '',
+      });
 
     } catch (err) {
       if (err.response?.data?.limitReached) {
@@ -257,9 +349,15 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
       if (confirm.mode === 'all') {
         await API.delete(`${apiBase}/history`);
         setHistory([]);
+        setCurrentPage(1);
       } else {
         await API.delete(`${apiBase}/history/${confirm.id}`);
-        setHistory((h) => h.filter((_, i) => i !== confirm.index));
+        setHistory((h) => {
+          const updated = h.filter((_, i) => i !== confirm.index);
+          const newTotalPages = Math.max(1, Math.ceil(updated.length / TOKENS_PER_PAGE));
+          setCurrentPage((p) => Math.min(p, newTotalPages));
+          return updated;
+        });
       }
       setConfirm(null);
       // Re-fetch quota after deletion so the bar updates
@@ -274,6 +372,16 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
   const isLimitBlocked = quota.tokenLimit !== null &&
     quota.tokenLimit !== undefined &&
     quota.tokensUsed >= quota.tokenLimit;
+
+  // ── Pagination derived values ────────────────────────────────────────────────
+  const totalPages    = Math.max(1, Math.ceil(history.length / TOKENS_PER_PAGE));
+  const startIndex    = (currentPage - 1) * TOKENS_PER_PAGE;
+  const currentTokens = history.slice(startIndex, startIndex + TOKENS_PER_PAGE);
+
+  const handlePageChange = (page) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  };
 
   return (
     <div className="admin-page">
@@ -305,6 +413,15 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
           <form onSubmit={handleSubmit} noValidate>
 
             <div className="tg-field">
+              <label className="tg-label">Client Name</label>
+              <input type="text" name="clientName" value={form.clientName}
+                onChange={handleTextInput} placeholder="Enter client name"
+                className={`tg-input ${errors.clientName ? 'tg-input--error' : ''}`} autoComplete="off"
+                disabled={isLimitBlocked} />
+              {errors.clientName && <p className="tg-error">{errors.clientName}</p>}
+            </div>
+
+            <div className="tg-field">
               <label className="tg-label">Facility Code <span className="tg-tag">12-bit · max 4,095</span></label>
               <input type="text" inputMode="numeric" name="facilityCode" value={form.facilityCode}
                 onChange={handleNumberInput} placeholder="Enter facility code (0 – 4095)" maxLength={4}
@@ -320,6 +437,24 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
                 className={`tg-input ${errors.accessCode ? 'tg-input--error' : ''}`} autoComplete="off"
                 disabled={isLimitBlocked} />
               {errors.accessCode && <p className="tg-error">{errors.accessCode}</p>}
+            </div>
+
+            <div className="tg-field">
+              <label className="tg-label">First Name</label>
+              <input type="text" name="firstName" value={form.firstName}
+                onChange={handleTextInput} placeholder="Enter first name"
+                className={`tg-input ${errors.firstName ? 'tg-input--error' : ''}`} autoComplete="off"
+                disabled={isLimitBlocked} />
+              {errors.firstName && <p className="tg-error">{errors.firstName}</p>}
+            </div>
+
+            <div className="tg-field">
+              <label className="tg-label">Last Name</label>
+              <input type="text" name="lastName" value={form.lastName}
+                onChange={handleTextInput} placeholder="Enter last name"
+                className={`tg-input ${errors.lastName ? 'tg-input--error' : ''}`} autoComplete="off"
+                disabled={isLimitBlocked} />
+              {errors.lastName && <p className="tg-error">{errors.lastName}</p>}
             </div>
 
             <div className="tg-field">
@@ -396,7 +531,7 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
               <button className="tg-delete-all-btn" onClick={openDeleteAll} title="Delete all">
                 <TrashIcon /> Delete All
               </button>
-            )}
+             )}
           </div>
 
           {histLoading ? (
@@ -408,32 +543,40 @@ const TokenPage = ({ apiBase, accentColor = '#e3f2fd', role = 'Admin' }) => {
               <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 4 }}>Tokens you generate will appear here.</p>
             </div>
           ) : (
-            <div className="tg-history-list">
-              {history.map((t, i) => (
-                <div className="tg-history-item" key={t._id || i}>
-                  <div className="tg-history-row">
-                    <div className="tg-history-email-wrap">
-                      <div className="tg-history-avatar">{t.employeeEmail?.charAt(0).toUpperCase()}</div>
-                      <div style={{ minWidth: 0 }}>
-                        <p className="tg-history-email">{t.employeeEmail}</p>
-                        <p className="tg-history-meta">FC: {t.facilityCode} &nbsp;·&nbsp; AC: {t.accessCode}</p>
+            <>
+              <div className="tg-history-list">
+                {currentTokens.map((t, i) => (
+                  <div className="tg-history-item" key={t._id || (startIndex + i)}>
+                    <div className="tg-history-row">
+                      <div className="tg-history-email-wrap">
+                        <div className="tg-history-avatar">{t.employeeEmail?.charAt(0).toUpperCase()}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <p className="tg-history-email">{t.firstName} {t.lastName} — {t.employeeEmail}</p>
+                          <p className="tg-history-meta">{t.clientName} &nbsp;·&nbsp; FC: {t.facilityCode} &nbsp;·&nbsp; AC: {t.accessCode}</p>
+                        </div>
+                      </div>
+                      <div className="tg-history-right">
+                        <span className="tg-history-badge">✓ sent</span>
+                        <p className="tg-history-date">
+                          {t.sentAt
+                            ? new Date(t.sentAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                            : 'Just now'}
+                        </p>
+                        <button className="tg-delete-row-btn" onClick={() => openDeleteSingle(t._id, startIndex + i)} title="Delete this record">
+                          <TrashIcon />
+                        </button>
                       </div>
                     </div>
-                    <div className="tg-history-right">
-                      <span className="tg-history-badge">✓ sent</span>
-                      <p className="tg-history-date">
-                        {t.sentAt
-                          ? new Date(t.sentAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                          : 'Just now'}
-                      </p>
-                      <button className="tg-delete-row-btn" onClick={() => openDeleteSingle(t._id, i)} title="Delete this record">
-                        <TrashIcon />
-                      </button>
-                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+              />
+            </>
           )}
         </div>
 
